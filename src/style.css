@@ -403,6 +403,20 @@ p, a, div {
 	color: #606060;
 }
 
+.finish-options {
+	display: flex;
+	gap: 1rem;
+}
+
+.finish-options button {
+	flex: 1;
+}
+
+.finish-stats .finish-record {
+	font-size: 2rem;
+	color: #404040;
+}
+
 .leaderboard-options {
 	display: flex;
 	gap: 1rem;

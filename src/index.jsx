@@ -4,13 +4,6 @@ import { Suspense, useEffect, useState, useRef, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { gsap } from 'gsap';
 import { useDetectGPU, PerformanceMonitor, useProgress, Html } from '@react-three/drei';
-import { v4 as uuidv4 } from 'uuid';
-import axios from 'axios';
-import {
-	RegExpMatcher,
-	englishDataset,
-	englishRecommendedTransformers,
-} from 'obscenity';
 import ConfettiExplosion from 'react-confetti-explosion';
 import Experience from './Experience.jsx';
 import useGame from './stores/Game.jsx';
@@ -43,13 +36,10 @@ function App() {
 	const [gamePlaying, setGamePlaying] = useState(false);
 	const [pauseMenu, setPauseMenu] = useState(false);
 	const [finishStatus, setFinishStatus] = useState(false);
-	const [leaderboardData, setLeaderboardData] = useState([]);
-	const [leaderboardView, setLeaderboardView] = useState(false);
-	const [recreateUser, setRecreateUser] = useState(false);
 	const finishStats = useRef(null);
-	const finishTime = useRef(null);
-	const finishRecord = useRef(null);
 	const [isExploding, setIsExploding] = useState(false);
+	const [isNewRecord, setIsNewRecord] = useState(false);
+	const [timeDiffDisplay, setTimeDiffDisplay] = useState('');
 	const pauseMenuRef = useRef(null);
 	const [countdownStatus, setCountdownStatus] = useState(false);
 	const [restartStatus, setRestartStatus] = useState(false);
@@ -59,14 +49,6 @@ function App() {
 	const resume = useGame((state) => state.resume);
 	const restart = useGame((state) => state.restart);
 
-	let userId = localStorage.getItem('user-id');
-  let userName = localStorage.getItem('user-name');
-	const userInput = useRef(null);
-	const matcher = new RegExpMatcher({
-		...englishDataset.build(),
-		...englishRecommendedTransformers,
-	});
-	const [error, setError] = useState(null);
 	
 	useEffect(() => { 
 		console.log(
@@ -98,14 +80,6 @@ function App() {
 			setFrenchKeyboard(false);
 		}
 	}, [frenchKeyboard]);
-
-	useEffect(() => {
-    const userId = localStorage.getItem('user-id');
-    if (!userId) {
-      const newUserId = uuidv4().replace(/-/g, '').slice(0, 32);
-      localStorage.setItem('user-id', newUserId);
-    }
-  }, []);
 
 	useEffect(() => {
 		GPUTier.fps > 60 ? setPerformanceMode(2) : GPUTier.fps > 30 ? setPerformanceMode(1) : setPerformanceMode(0);
@@ -151,140 +125,24 @@ function App() {
 		if (phase === 'ended') {
 			setFinishStatus(true);
 			let elapsedTime = endTime - startTime;
-			let currentRecordTime = localStorage.getItem('currentRecordTime');
-			let timeDifference = 0;
+			let currentRecordTime = parseFloat(localStorage.getItem('currentRecordTime'));
 			setTimeout(() => {
 				gsap.to(finishStats.current, {opacity: 1, duration: 1.5});
-				if (currentRecordTime > elapsedTime) {
-					const data = { time: formattedTime };
-					axios.patch(`https://circuit-rush-api.vercel.app/api/records/${userId}`, data, {
-							headers: {
-									'Content-Type': 'application/json',
-									'record-id': userId
-							}
-					}).then(() => {
-							localStorage.setItem('currentRecordTime', elapsedTime);
-					timeDifference = currentRecordTime - elapsedTime;
-							setLeaderboardView(true);
-							setTimeout(() => {
-									finishTime.current.innerHTML = `${formattedTime}<br><span class="better-time">(-${padWithZero(Math.floor(timeDifference / 60000) % 60)}:${padWithZero(Math.floor(timeDifference / 1000) % 60)}:${padWithZero(timeDifference % 1000, 3)})</span>`;
-									finishRecord.current.innerHTML = "New record!";
-									setIsExploding(true);
-							}, 200);
-					}).catch((error) => {
-							localStorage.removeItem('user-name');
-							localStorage.removeItem('user-id');
-							localStorage.removeItem('currentRecordTime');
-							const newUserId = uuidv4().replace(/-/g, '').slice(0, 32);
-							localStorage.setItem('user-id', newUserId);
-							userId = newUserId;
-							userName = null;
-							setRecreateUser(true);
-							setTimeout(() => {
-							gsap.to(finishStats.current, {opacity: 1, duration: 1.5});
-							finishTime.current.innerHTML = formattedTime;
-							}, 200);
-					});
-				} else {
-					timeDifference = elapsedTime - currentRecordTime;
-					if (!currentRecordTime) {
-						finishTime.current.innerHTML = formattedTime;
-						setIsExploding(true);
-					} else {
-						timeDifference = elapsedTime - currentRecordTime;
-						setLeaderboardView(true);
-						setTimeout(() => {
-							if (timeDifference == 0) {
-								finishTime.current.innerHTML = formattedTime;
-								finishRecord.current.innerHTML = "How is that possible?";
-							} else {
-								finishTime.current.innerHTML = `${formattedTime}<br><span class="worse-time">(+${padWithZero(Math.floor(timeDifference / 60000) % 60)}:${padWithZero(Math.floor(timeDifference / 1000) % 60)}:${padWithZero(timeDifference % 1000, 3)})</span>`;
-								finishRecord.current.innerHTML = "You did better once";
-							}
-						}, 200);
+				if (!currentRecordTime || elapsedTime < currentRecordTime) {
+					localStorage.setItem('currentRecordTime', elapsedTime);
+					setIsNewRecord(true);
+					setIsExploding(true);
+					if (currentRecordTime) {
+						let timeDifference = currentRecordTime - elapsedTime;
+						setTimeDiffDisplay(`-${padWithZero(Math.floor(timeDifference / 60000) % 60)}:${padWithZero(Math.floor(timeDifference / 1000) % 60)}:${padWithZero(timeDifference % 1000, 3)}`);
 					}
+				} else if (elapsedTime > currentRecordTime) {
+					let timeDifference = elapsedTime - currentRecordTime;
+					setTimeDiffDisplay(`+${padWithZero(Math.floor(timeDifference / 60000) % 60)}:${padWithZero(Math.floor(timeDifference / 1000) % 60)}:${padWithZero(timeDifference % 1000, 3)}`);
 				}
 			}, 200);
 		}
 	}, [phase, formattedTime]);
-
-	useEffect(() => {
-		if (phase === "ended" && userId && userName && leaderboardView) {
-			setTimeout(() => {
-				const leaderboardList = document.querySelector('.leaderboard-list');
-    		leaderboardList.classList.add('loading');
-			}, 50)
-			axios.get('https://circuit-rush-api.vercel.app/api/get-records')
-				.then(response => {
-					setLeaderboardData(response.data);
-					const leaderboardList = document.querySelector('.leaderboard-list');
-					leaderboardList.classList.remove('loading');
-					setTimeout(() => {
-						const userElement = document.querySelector('.leaderboard-list-item.user');
-						if (userElement && leaderboardList) {
-							userElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-						}
-					}, 200);
-				})
-		}
-  }, [leaderboardView]);
-
-	const handleSubmit = (e) => {
-		e.preventDefault();
-		const inputValue = userInput.current.value.trim().toUpperCase();
-		if (matcher.hasMatch(inputValue)) {
-			return;
-		}
-		const button = document.querySelector('input.submit-user');
-    button.classList.add('loading');
-		setError(null);
-		const inputPattern = /^[a-zA-Z0-9]+$/;
-		if (inputPattern.test(inputValue) && inputValue.length > 0 && inputValue.length <= 12 && !matcher.hasMatch(inputValue)) {
-			const data = {
-				user: inputValue,
-				time: formattedTime
-			};
-			axios.post('https://circuit-rush-api.vercel.app/api/post-record', data, {
-				headers: {
-					'Content-Type': 'application/json',
-					'record-id': userId
-				}
-			})
-			.then(response => {
-				setRecreateUser(false);
-				button.classList.remove('loading');
-				if (response.status === 200) {
-					localStorage.setItem('user-name', inputValue);
-					localStorage.setItem('currentRecordTime', endTime - startTime);
-					setLeaderboardView(true);
-					setTimeout(() => {
-						finishTime.current.innerHTML = formattedTime;
-						finishRecord.current.innerHTML = "Compete against others!";
-					}, 200);
-				} else {
-					setError('Failed to submit record.');
-				}
-			})
-			.catch(error => {
-				if (error.response && error.response.status === 409) {
-						setError('Name already in use.');
-				} else {
-						console.error('Error:', error);
-						setError('Failed to submit record.');
-				}
-				button.classList.remove('loading');
-			});			
-		} else {
-			setTimeout(() => {
-				setError('Please enter a valid user name.');
-				button.classList.remove('loading');
-			}, 200)
-		}
-	};	
-	
-  const clearError = () => {
-    setError(null);
-  };
 
 	const handlePause = () => {
 		setPauseMenu(true);
@@ -339,13 +197,12 @@ function App() {
 
 	const restartButton = () => {
 		if (phase === 'ended') {
-			const leaderboardList = document.querySelector('.leaderboard-list');
-			leaderboardList.innerHTML = '';
 			setCountdownStatus(false);
 			setFinishStatus(false);
-			setLeaderboardView(false);
 			setIsExploding(false);
-			setTimeout(() => { 
+			setIsNewRecord(false);
+			setTimeDiffDisplay('');
+			setTimeout(() => {
 				setCountdownStatus(true);
 			}, 2000);
 		}
@@ -580,41 +437,15 @@ function App() {
 								</Html>
 								: null
 							}
-							{(finishStatus && !leaderboardView && !userName) || recreateUser ? 
+							{finishStatus ?
 								<Html wrapperClass={'finish-overlay'} className='finish-stats' ref={finishStats}>
 									<>{isExploding && <ConfettiExplosion force={0.4} duration={4000} particleSize={8} particleCount={128} width={window.innerWidth > 1080 ? window.innerWidth / 2 : window.innerWidth * 0.8} colors={['#e55555', '#db3d3d', '#e55555', '#fc4c4c']} className='confetti-explosion'/>}</>
-									<div className="finish-time" ref={finishTime}></div>
-									<form className="new-user-form" onSubmit={handleSubmit}>
-										<input className="new-user" ref={userInput} placeholder='Insert your name' pattern=".{3,}" required title='3 characters minimum' />
-										<input type='submit' className='submit-user' value={'CONFIRM'}/>
-									</form>
-									{error && (
-										<span className="error-message">{error}</span>
-									)}
-								</Html>
-								: null
-							}
-							{finishStatus && leaderboardView && userName? 
-								<Html wrapperClass={'leaderboard-overlay'} className='leaderboard-stats' ref={finishStats}>
-									<>{isExploding && <ConfettiExplosion force={0.4} duration={4000} particleSize={8} particleCount={128} width={window.innerWidth > 1080 ? window.innerWidth / 2 : window.innerWidth * 0.8} colors={['#e55555', '#db3d3d', '#e55555', '#fc4c4c']} className='confetti-explosion'/>}</>
-									<div className='leaderboard-header'>
-										<div className="finish-record" ref={finishRecord}></div>
-										<div className="finish-time" ref={finishTime}></div>
+									<div className="finish-record">{isNewRecord ? 'New record!' : (timeDiffDisplay ? 'You did better once' : '')}</div>
+									<div className="finish-time">
+										{formattedTime}
+										{timeDiffDisplay && <><br/><span className={isNewRecord ? 'better-time' : 'worse-time'}>({timeDiffDisplay})</span></>}
 									</div>
-									<div className='leaderboard-list-area'>
-										<div className='leaderboard-list'>
-											{leaderboardData.map((item, index) => (
-												<div className={`leaderboard-list-item ${item.user === userName ? 'user' : ''}`} key={index}>
-													<div className='leaderboard-list-item-content'>
-														<div className='position'>{index + 1}</div>
-														<div className='name'>{item.user}</div>
-														<div className='time'>{item.time}</div>
-													</div>
-												</div>
-											))}
-										</div>
-									</div>
-									<div className='leaderboard-options'>
+									<div className='finish-options'>
 										<button onClick={restartButton}>RESTART</button>
 										<button onClick={quitButton}>QUIT</button>
 									</div>
