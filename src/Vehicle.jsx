@@ -54,8 +54,8 @@ export default function Vehicle({ checkpoint, performanceMode }) {
         materialParams.color = '#e55555';
         materialParams.emissiveIntensity = -0.15;
       } else {
-        materialParams.color = '#ffffff';
-        materialParams.emissive = '#ffffff';
+        materialParams.color = '#e55555';
+        materialParams.emissive = '#e55555';
         materialParams.emissiveIntensity = 0.2;
       }
       child.material = new MeshStandardMaterial(materialParams);
